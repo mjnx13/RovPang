@@ -4,6 +4,8 @@
 /rovpang/pick, /rovpang/place, /rovpang/go_to 액션과 /rovpang/set_arm_pose 서비스를 제공하고,
 delay 초 뒤에 성공을 돌려준다. fail_on 파라미터로 특정 기능을 실패시킬 수 있다.
   fail_on: '' (모두 성공) / 'pick' / 'place' / 'go_to' / 'arm'
+           / 'arm_away' (출발지가 아닌 곳에서만 팔 자세 실패 -> 복귀 전 멈춤 시험)
+  실행 중에 ros2 param set /mock_robot fail_on none 으로 고장을 '고칠' 수 있다.
 """
 import time
 
@@ -22,6 +24,7 @@ class MockRobot(Node):
         super().__init__('mock_robot')
         self.declare_parameter('delay', 2.0)
         self.declare_parameter('fail_on', '')
+        self.location = GoTo.Goal.DEST_START   # 가짜 로봇의 현재 위치
         cb = ReentrantCallbackGroup()
         common = dict(callback_group=cb,
                       goal_callback=lambda g: GoalResponse.ACCEPT,
@@ -97,13 +100,15 @@ class MockRobot(Node):
             goal_handle.abort()
         else:
             result.success, result.reason = True, ''
+            self.location = dest
             goal_handle.succeed()
         return result
 
     def on_arm(self, request, response):
         self.get_logger().info('[set_arm_pose] {}'.format(request.pose))
         time.sleep(0.5)
-        if self.should_fail('arm'):
+        away = self.location != GoTo.Goal.DEST_START
+        if self.should_fail('arm') or (self.should_fail('arm_away') and away):
             response.success, response.message = False, 'mock: 팔 자세 실패'
         else:
             response.success, response.message = True, 'ok'

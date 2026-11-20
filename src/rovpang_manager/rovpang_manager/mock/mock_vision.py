@@ -6,12 +6,14 @@
 수령자가 올바른 QR을 보여주는 것처럼 /rovpang/qr 을 5Hz로 발행한다.
   wrong_sign: true 면 다른 배송지 표지판을 보냄
   wrong_qr:   true 면 틀린 QR 문자열을 보냄
+  wrong_qr_for: 0보다 크면 인증 단계(VERIFYING) 시작 후 이 시간(초) 동안만 틀린 QR을 보내고
+                그다음 올바른 QR을 보냄 (QR 두 번째 기회 성공 시험용)
 """
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import String
 
-from rovpang_interfaces.msg import DeliveryRequest, Detection, DetectionArray, Sign
+from rovpang_interfaces.msg import DeliveryRequest, DeliveryStatus, Detection, DetectionArray, Sign
 
 
 class MockVision(Node):
@@ -19,8 +21,11 @@ class MockVision(Node):
         super().__init__('mock_vision')
         self.declare_parameter('wrong_sign', False)
         self.declare_parameter('wrong_qr', False)
+        self.declare_parameter('wrong_qr_for', 0.0)
         self.declare_parameter('frame_id', 'depth_cam_color_frame')
         self.req = None
+        self.verify_start = None   # 인증 단계가 시작된 시각
+        self.create_subscription(DeliveryStatus, '/rovpang/status', self.on_status, 10)
         self.create_subscription(DeliveryRequest, '/rovpang/delivery_request', self.on_request, 10)
         self.det_pub = self.create_publisher(DetectionArray, '/rovpang/detections', 10)
         self.sign_pub = self.create_publisher(Sign, '/rovpang/sign', 10)
@@ -30,7 +35,23 @@ class MockVision(Node):
 
     def on_request(self, req):
         self.req = req
+        self.verify_start = None
         self.get_logger().info('요청 수신: {} -> {}'.format(req.item_class, req.destination))
+
+    def on_status(self, msg):
+        if msg.state == DeliveryStatus.STATE_VERIFYING and self.verify_start is None:
+            self.verify_start = self.get_clock().now()
+
+    def qr_is_wrong(self):
+        if self.get_parameter('wrong_qr').value:
+            return True
+        wrong_for = self.get_parameter('wrong_qr_for').value
+        if wrong_for <= 0.0:
+            return False
+        if self.verify_start is None:
+            return True
+        elapsed = (self.get_clock().now() - self.verify_start).nanoseconds / 1e9
+        return elapsed < wrong_for
 
     def tick(self):
         if self.req is None:
@@ -59,7 +80,7 @@ class MockVision(Node):
         self.sign_pub.publish(sign)
 
         qr = String()
-        qr.data = 'WRONG-TOKEN' if self.get_parameter('wrong_qr').value else self.req.qr_token
+        qr.data = 'WRONG-TOKEN' if self.qr_is_wrong() else self.req.qr_token
         self.qr_pub.publish(qr)
 
 

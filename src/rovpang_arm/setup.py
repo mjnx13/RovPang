@@ -27,6 +27,7 @@ setup(
 		'arm_test = rovpang_arm.arm_test:main',
 		'gripper_control = rovpang_arm.gripper_control:main',
 		'arm_pose_server = rovpang_arm.arm_pose_server:main',
+		'pick_place_server = rovpang_arm.pick_place_server:main',
         ],
     },
 )

@@ -52,7 +52,8 @@ class ArmPoseServer(Node):
         for name, default in DEFAULT_POSES.items():
             self.declare_parameter('poses.' + name, default)
         self.declare_parameter('poses.LOOK', DEFAULT_POSES['LOOK_DOWN'])   # 예전 이름 호환
-        for name in list(DEFAULT_POSES) + ['LOOK']:
+        self.declare_parameter('poses.PICK_SPOT', [500, 190, 300, 300, 500, -1])   # 보정용 (집는 자리)
+        for name in list(DEFAULT_POSES) + ['LOOK', 'PICK_SPOT']:
             self.poses[name] = [int(v) for v in self.get_parameter('poses.' + name).value]
 
         cb = ReentrantCallbackGroup()

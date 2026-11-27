@@ -4,6 +4,8 @@
 
   ros2 launch rovpang_bringup rovpang.launch.py                       # 로봇 동작(pick·place·go_to·팔)은 가짜, 나머지 실제
   ros2 launch rovpang_bringup rovpang.launch.py mock:=pick,place,go_to      # 팔 자세만 실제 (arm_pose_server 자동 실행)
+  ros2 launch rovpang_bringup rovpang.launch.py mock:=go_to                 # 팔 자세 + 고정 위치 집기·하역 실제 (pick_place_server)
+  ros2 launch rovpang_bringup rovpang.launch.py mock:=go_to dry_run:=true   # 집기·하역은 로그로만
   ros2 launch rovpang_bringup rovpang.launch.py mock:=pick,place,arm nav:=true   # 주행만 실제(팀장 nav_bringup)
   ros2 launch rovpang_bringup rovpang.launch.py mock:=none nav:=true  # 모두 실제 (팀장 노드가 모두 준비됐을 때)
 
@@ -62,11 +64,18 @@ def setup(ctx):
         poses = os.path.join(get_package_share_directory('rovpang_arm'), 'config', 'arm_poses.yaml')
         acts.append(Node(package='rovpang_arm', executable='arm_pose_server', name='arm_pose_server',
                          output='screen', parameters=[poses]))
+    # 집기·하역을 가짜로 하지 않으면 고정 위치 집기·하역 서버를 켬 (팀장 IK pick_server 준비 전 시연용)
+    if ('pick' not in serve or 'place' not in serve) and on(ctx, 'arm_server'):
+        pp = os.path.join(get_package_share_directory('rovpang_arm'), 'config', 'pick_place.yaml')
+        acts.append(Node(package='rovpang_arm', executable='pick_place_server', name='pick_place_server',
+                         output='screen', parameters=[pp, {'dry_run': on(ctx, 'dry_run')}]))
     if serve:
         later.append(Node(package='rovpang_manager', executable='mock_robot', name='mock_robot', output='screen',
                           parameters=[{'serve': serve}]))
     later.append(Node(package='rovpang_manager', executable='task_manager', name='task_manager',
-                      output='screen'))
+                      output='screen', parameters=[{
+                          'confidence_min': float(ctx.launch_configurations['confidence_min']),
+                          'qr_timeout': float(ctx.launch_configurations['qr_timeout'])}]))
     # 카메라가 완전히 켜진 뒤 비전·배송 관리 시작 (11/25: 순서가 꼬이면 영상이 안 들어온 적 있음)
     acts.append(TimerAction(period=float(ctx.launch_configurations['start_delay']), actions=later))
     return acts
@@ -83,6 +92,11 @@ def generate_launch_description():
                               description='가짜로 대신할 기능: all / none / pick,place,go_to,arm 중 쉼표로'),
         DeclareLaunchArgument('arm_server', default_value='true',
                               description='mock 에 arm 이 없을 때 rovpang_arm arm_pose_server 를 켤지'),
+        DeclareLaunchArgument('dry_run', default_value='false',
+                              description='true: 집기·하역 동작을 로그로만 (팔 안 움직임)'),
+        DeclareLaunchArgument('confidence_min', default_value='0.65',
+                              description='물품 탐지 신뢰도 기준 (11/27: 세워 둔 buds 0.68~0.89, 크기·집는 자리 검사로 오탐 방지)'),
+        DeclareLaunchArgument('qr_timeout', default_value='45.0', description='QR 인증 제한 시간(초)'),
         DeclareLaunchArgument('start_delay', default_value='5.0', description='카메라 켠 뒤 비전·관리 노드 시작까지(초)'),
         OpaqueFunction(function=setup),
     ])

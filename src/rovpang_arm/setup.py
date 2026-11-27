@@ -1,3 +1,5 @@
+from glob import glob
+
 from setuptools import find_packages, setup
 
 package_name = 'rovpang_arm'
@@ -10,6 +12,7 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
+        ('share/' + package_name + '/config', glob('config/*.yaml')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -23,6 +26,7 @@ setup(
 		'arm_controller = rovpang_arm.arm_controller:main',
 		'arm_test = rovpang_arm.arm_test:main',
 		'gripper_control = rovpang_arm.gripper_control:main',
+		'arm_pose_server = rovpang_arm.arm_pose_server:main',
         ],
     },
 )

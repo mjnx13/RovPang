@@ -1,0 +1,15 @@
+# 팔 자세 값 [ID1, ID2, ID3, ID4, ID5, 그리퍼(ID10)] 펄스 (0~1000). 그리퍼 -1 = 그리퍼는 그대로
+# 출처: 팀장 11/25 작업보고서 '로봇팔 자세 설계'. LOOK_DOWN 은 참고값(P1)이라 로봇에서 보며 조정
+# 조정 방법: 이 파일 값을 고치고 colcon build --packages-select rovpang_arm 후 다시 실행
+arm_pose_server:
+  ros__parameters:
+    duration: 2.0
+    tolerance: 15
+    settle_timeout: 3.0
+    poses:
+      HOME:       [500, 765, 15, 150, 500, -1]
+      CARRY:      [500, 700, 15, 215, 500, -1]
+      LOOK_FRONT: [500, 750, 0, 375, 500, -1]
+      LOOK_DOWN:  [500, 720, 100, 120, 500, -1]
+      SAFE:       [500, 765, 15, 150, 500, -1]
+      LOOK:       [500, 720, 100, 120, 500, -1]

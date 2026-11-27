@@ -3,6 +3,7 @@
 먼저 로봇 본체에서: sudo systemctl stop start_app_node.service   (제조사 앱이 CPU 2개를 씀)
 
   ros2 launch rovpang_bringup rovpang.launch.py                       # 로봇 동작(pick·place·go_to·팔)은 가짜, 나머지 실제
+  ros2 launch rovpang_bringup rovpang.launch.py mock:=pick,place,go_to      # 팔 자세만 실제 (arm_pose_server 자동 실행)
   ros2 launch rovpang_bringup rovpang.launch.py mock:=pick,place,arm nav:=true   # 주행만 실제(팀장 nav_bringup)
   ros2 launch rovpang_bringup rovpang.launch.py mock:=none nav:=true  # 모두 실제 (팀장 노드가 모두 준비됐을 때)
 
@@ -11,6 +12,7 @@
   controller: controller controller.launch.py (비프음, 팔 서보)
   vision    : rovpang_vision vision.launch.py (물품·표지판·QR)
   manager   : task_manager (+ mock 에 적은 기능만 mock_robot 이 흉내)
+  arm       : mock 에 arm 이 없으면 rovpang_arm arm_pose_server (config/arm_poses.yaml 펄스 값)
   rosbridge : rosbridge_websocket (관리자 프로그램, 포트 9090)
   nav       : rovpang_navigation nav_bringup.launch.py (지도·Nav2·goto_server)
 """
@@ -55,6 +57,11 @@ def setup(ctx):
     bad = [f for f in serve if f not in FUNCS]
     if bad:
         raise RuntimeError('mock 에는 {} 중에서 고르세요: {}'.format(','.join(FUNCS), bad))
+    # 팔 자세를 가짜로 하지 않으면 실제 팔 자세 서버(정해 둔 펄스 값)를 켬
+    if 'arm' not in serve and on(ctx, 'arm_server'):
+        poses = os.path.join(get_package_share_directory('rovpang_arm'), 'config', 'arm_poses.yaml')
+        acts.append(Node(package='rovpang_arm', executable='arm_pose_server', name='arm_pose_server',
+                         output='screen', parameters=[poses]))
     if serve:
         later.append(Node(package='rovpang_manager', executable='mock_robot', name='mock_robot', output='screen',
                           parameters=[{'serve': serve}]))
@@ -74,6 +81,8 @@ def generate_launch_description():
         DeclareLaunchArgument('nav', default_value='false', description='true: 팀장 nav_bringup (지도 필요)'),
         DeclareLaunchArgument('mock', default_value='all',
                               description='가짜로 대신할 기능: all / none / pick,place,go_to,arm 중 쉼표로'),
+        DeclareLaunchArgument('arm_server', default_value='true',
+                              description='mock 에 arm 이 없을 때 rovpang_arm arm_pose_server 를 켤지'),
         DeclareLaunchArgument('start_delay', default_value='5.0', description='카메라 켠 뒤 비전·관리 노드 시작까지(초)'),
         OpaqueFunction(function=setup),
     ])
